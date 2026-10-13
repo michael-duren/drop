@@ -8,7 +8,7 @@ BIN     := $(BUILD)/drop
 SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
 
-.PHONY: all clean test
+.PHONY: all clean run test
 
 all: $(BIN)
 
@@ -20,6 +20,10 @@ $(BUILD)/%.o: src/%.c | $(BUILD)
 
 $(BUILD):
 	mkdir -p $@
+
+# `make run ARGS="..."` builds if needed, then runs the binary.
+run: $(BIN)
+	./$(BIN) $(ARGS)
 
 test:
 	$(MAKE) -C tests all
