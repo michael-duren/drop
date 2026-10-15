@@ -1,8 +1,8 @@
-#include <stdio.h>
-
-#include "drop.h"
+#include "loop.h"
+#include <stdlib.h>
 
 int main(void) {
-  printf("drop\n");
-  return 0;
+	shell_loop();
+
+	return EXIT_SUCCESS;
 }
