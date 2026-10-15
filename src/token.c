@@ -15,7 +15,7 @@ int token_arr_init(token_arr *arr) {
 	size_t cap = TOKEN_ARR_INIT_SIZE;
 	token_t *tokens = malloc(sizeof(token_t) * cap);
 	if (tokens == NULL) {
-		return -1;
+		return DROP_ERR;
 	}
 	arr->tokens = tokens;
 	arr->cap = cap;
