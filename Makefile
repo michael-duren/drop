@@ -1,5 +1,5 @@
 CC      := cc
-CFLAGS  := -std=c23 -Wall -Wextra -Werror -pedantic -g -Iinclude
+CFLAGS  := -std=c23 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -pedantic -g -Iinclude
 LDFLAGS :=
 
 BUILD   := build
