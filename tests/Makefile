@@ -1,5 +1,10 @@
 CC     := cc
-CFLAGS := -std=c23 -Wall -Wextra -Werror -pedantic -g -I../include
+# -fsanitize: turn on ASan + UBSan
+# -fno-sanitize-recover=all: stop the program on any UBSan error
+# -fno-omit-frame-pointer: cleaner stack traces in reports
+CFLAGS := -std=c23 -Wall -Wextra -Werror -pedantic -g -I../include \
+		  -fsanitize=address,undefined -fno-sanitize-recover=all \
+		  -fno-omit-frame-pointer
 
 BUILD  := ../build/tests
 

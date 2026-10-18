@@ -31,7 +31,7 @@ int token_arr_push(token_arr *arr, token_t token) {
 		if (tokens == NULL) {
 			return DROP_ERR;
 		}
-		arr->cap = sizeof(token_t) * ncap;
+		arr->cap = ncap;
 		arr->tokens = tokens;
 	}
 	arr->tokens[arr->len] = token;

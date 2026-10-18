@@ -134,9 +134,12 @@ static void test_many_tokens(void) {
 		{TOKEN_WORD, "a"}, {TOKEN_WORD, "b"}, {TOKEN_WORD, "c"},
 		{TOKEN_WORD, "d"}, {TOKEN_WORD, "e"}, {TOKEN_WORD, "f"},
 		{TOKEN_WORD, "g"}, {TOKEN_WORD, "h"}, {TOKEN_WORD, "i"},
-		{TOKEN_WORD, "j"}, {TOKEN_EOF, ""},
+		{TOKEN_WORD, "j"}, {TOKEN_WORD, "k"}, {TOKEN_WORD, "l"},
+		{TOKEN_WORD, "m"}, {TOKEN_WORD, "n"}, {TOKEN_WORD, "o"},
+		{TOKEN_WORD, "p"}, {TOKEN_WORD, "q"}, {TOKEN_WORD, "r"},
+		{TOKEN_EOF, ""},
 	};
-	expect_tokens("a b c d e f g h i j", want, LEN(want));
+	expect_tokens("a b c d e f g h i j k l m n o p q r", want, LEN(want));
 }
 
 #define RUN(t)                                                                 \
