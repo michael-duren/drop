@@ -17,6 +17,8 @@ typedef struct {
 	// int line;
 } scanner_t;
 
+int scanner_init(scanner_t *s, char *src);
+void scanner_deinit(scanner_t *s);
 int scan_tokens(scanner_t *s);
 
 #endif // !DROP_SCANNER_H

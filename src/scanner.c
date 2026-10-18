@@ -20,6 +20,8 @@ int scanner_init(scanner_t *s, char *src) {
 
 	s->source = src;
 	s->source_len = strlen(src);
+	s->current = src;
+	s->start = src;
 
 	return DROP_OK;
 }
@@ -47,12 +49,12 @@ int add_token(scanner_t *s, token_type_t type) {
 	case TOKEN_WORD:
 		while (true) {
 			char curr = peek(s);
+			if (isblank(curr) || at_end(s)) {
+				break;
+			}
 			if (!validword_c(curr)) {
 				errno = EINVAL;
 				return DROP_ERR;
-			}
-			if (isblank(curr) || at_end(s)) {
-				break;
 			}
 			advance(s);
 		}
@@ -64,12 +66,12 @@ int add_token(scanner_t *s, token_type_t type) {
 				advance(s);
 				break;
 			}
+			if (isblank(curr) || at_end(s)) {
+				break;
+			}
 			if (!validword_c(curr)) {
 				errno = EINVAL;
 				return DROP_ERR;
-			}
-			if (isblank(curr) || at_end(s)) {
-				break;
 			}
 			advance(s);
 		}
@@ -129,8 +131,12 @@ int scan_tokens(scanner_t *s) {
 
 	while (!at_end(s)) {
 		s->start = s->current;
-		scan_token(s);
+		int rc;
+		if ((rc = scan_token(s)) != DROP_OK) {
+			return rc;
+		}
 	}
+	s->start = s->current;
 	add_token(s, TOKEN_EOF);
 
 	return DROP_OK;
