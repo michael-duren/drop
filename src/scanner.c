@@ -44,12 +44,25 @@ char peek(scanner_t *s) {
 
 bool validword_c(char c) { return isalnum(c) || c == '-' || c == '_'; }
 
+bool is_operator(char c) {
+	switch (c) {
+	case '|':
+	case '<':
+	case '>':
+	case '(':
+	case ')':
+		return true;
+	}
+
+	return false;
+}
+
 int add_token(scanner_t *s, token_type_t type) {
 	switch (type) {
 	case TOKEN_WORD:
 		while (true) {
 			char curr = peek(s);
-			if (isblank(curr) || at_end(s)) {
+			if (isspace(curr) || at_end(s) || is_operator(curr)) {
 				break;
 			}
 			if (!validword_c(curr)) {
@@ -66,12 +79,11 @@ int add_token(scanner_t *s, token_type_t type) {
 				advance(s);
 				break;
 			}
-			if (isblank(curr) || at_end(s)) {
-				break;
-			}
-			if (!validword_c(curr)) {
+			// we didn't find the other "
+			if (at_end(s)) {
 				errno = EINVAL;
 				return DROP_ERR;
+				break;
 			}
 			advance(s);
 		}
