@@ -42,7 +42,24 @@ char peek(scanner_t *s) {
 	return *s->current;
 }
 
-bool validword_c(char c) { return isalnum(c) || c == '-' || c == '_'; }
+bool validword_c(char c) {
+	if (isalnum(c)) {
+		return true;
+	}
+
+	// keeping this simple for now. need to be able to handle paths
+	// and variable expansion as a word
+	switch (c) {
+	case '-':
+	case '_':
+	case '$':
+	case '.':
+	case '/':
+		return true;
+	}
+
+	return false;
+}
 
 bool is_operator(char c) {
 	switch (c) {

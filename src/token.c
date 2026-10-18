@@ -27,7 +27,7 @@ int token_arr_init(token_arr *arr) {
 int token_arr_push(token_arr *arr, token_t token) {
 	if (arr->cap == arr->len) {
 		size_t ncap = arr->cap * 2;
-		token_t *tokens = realloc(arr->tokens, ncap);
+		token_t *tokens = realloc(arr->tokens, ncap * sizeof(token_t));
 		if (tokens == NULL) {
 			return DROP_ERR;
 		}

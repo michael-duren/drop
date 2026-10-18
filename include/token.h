@@ -40,7 +40,10 @@ typedef struct {
 
 typedef struct {
 	token_t *tokens;
+	// the total amount of tokens the backing array can hold
+	// to get the size in bytes multiply by sizeof(token_t)
 	size_t cap;
+	// the total amount of tokens in the array
 	size_t len;
 } token_arr;
 
