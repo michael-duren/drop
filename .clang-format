@@ -1,0 +1,6 @@
+# Mirrors the clang-format style forced by conform.nvim in Neovim, so
+# `make fmt` and format-on-save produce the same output.
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Always

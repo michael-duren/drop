@@ -14,9 +14,12 @@ TESTS  := add_test scanner_test
 add_test_SRCS := ../src/add.c
 scanner_test_SRCS := ../src/scanner.c ../src/token.c
 
-.PHONY: all clean $(TESTS)
+.PHONY: all build clean $(TESTS)
 
 all: $(TESTS)
+
+# Compile every test without running it.
+build: $(addprefix $(BUILD)/,$(TESTS))
 
 # `make add_test` builds and runs a single test.
 $(TESTS): %: $(BUILD)/%
