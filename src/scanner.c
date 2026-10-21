@@ -119,6 +119,7 @@ int scan_token(scanner_t *s) {
 	int rc = DROP_OK;
 	switch (c) {
 	case ' ':
+	case '\r':
 	case '\t':
 		break;
 	case '\n':
@@ -145,8 +146,12 @@ int scan_token(scanner_t *s) {
 		rc = add_token(s, TOKEN_STRING);
 		break;
 	default:
-		rc = add_token(s, TOKEN_WORD);
-		break;
+		if (validword_c(c)) {
+			rc = add_token(s, TOKEN_WORD);
+			break;
+		}
+		errno = EINVAL;
+		rc = DROP_ERR;
 	}
 
 	return rc;
