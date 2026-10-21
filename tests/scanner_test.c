@@ -6,6 +6,7 @@
 
 #include "drop.h"
 #include "scanner.h"
+#include "token.h"
 
 typedef struct {
 	token_type_t type;
@@ -88,6 +89,37 @@ static void test_redirects(void) {
 		{TOKEN_GREAT, ">"},	 {TOKEN_WORD, "out"}, {TOKEN_EOF, ""},
 	};
 	expect_tokens("cat < in > out", want, LEN(want));
+}
+
+static void test_append(void) {
+	expected_t want[] = {
+		{TOKEN_WORD, "cat"},
+		{TOKEN_DGREAT, ">>"},
+		{TOKEN_WORD, "out.txt"},
+		{TOKEN_EOF, ""},
+	};
+	expect_tokens("cat >> out.txt", want, LEN(want));
+}
+
+static void test_here_string(void) {
+	expected_t want[] = {
+		{TOKEN_WORD, "wc"},
+		{TOKEN_WORD, "-w"},
+		{TOKEN_DLESS, "<<"},
+		{TOKEN_LESS, "<"},
+		{TOKEN_STRING, "\"hey buddy\""},
+		{TOKEN_EOF, ""},
+	};
+	expect_tokens("wc -w <<< \"hey buddy\"", want, LEN(want));
+}
+
+static void test_heredoc(void) {
+	expected_t want[] = {
+		{TOKEN_WORD, "cat"},   {TOKEN_DLESS, "<<"},		 {TOKEN_WORD, "END"},
+		{TOKEN_NEWLINE, "\n"}, {TOKEN_WORD, "HeyBuddy"}, {TOKEN_NEWLINE, "\n"},
+		{TOKEN_WORD, "END"},   {TOKEN_EOF, ""},
+	};
+	expect_tokens("cat << END\nHeyBuddy\nEND", want, LEN(want));
 }
 
 static void test_operators_no_spaces(void) {
@@ -252,31 +284,6 @@ static void test_blank_lines(void) {
 	expect_tokens("\n\n", want, LEN(want));
 }
 
-// static void test_doubled_operators(void) {
-// 	// no >>, || or <> tokens yet, so each char scans on its own. update
-// 	// when TOKEN_DGREAT / TOKEN_OR_IF land
-// 	expected_t dgreat[] = {
-// 		{TOKEN_GREAT, ">"},
-// 		{TOKEN_GREAT, ">"},
-// 		{TOKEN_EOF, ""},
-// 	};
-// 	expect_tokens(">>", dgreat, LEN(dgreat));
-//
-// 	expected_t or_if[] = {
-// 		{TOKEN_PIPE, "|"},
-// 		{TOKEN_PIPE, "|"},
-// 		{TOKEN_EOF, ""},
-// 	};
-// 	expect_tokens("||", or_if, LEN(or_if));
-//
-// 	expected_t lessgreat[] = {
-// 		{TOKEN_LESS, "<"},
-// 		{TOKEN_GREAT, ">"},
-// 		{TOKEN_EOF, ""},
-// 	};
-// 	expect_tokens("<>", lessgreat, LEN(lessgreat));
-// }
-
 static void test_operator_at_edges(void) {
 	expected_t leading[] = {
 		{TOKEN_PIPE, "|"},
@@ -365,6 +372,9 @@ int main(void) {
 	RUN(test_whitespace);
 	RUN(test_trailing_newline);
 	RUN(test_redirects);
+	RUN(test_append);
+	RUN(test_here_string);
+	RUN(test_heredoc);
 	RUN(test_operators_no_spaces);
 	RUN(test_parens);
 	RUN(test_string);
@@ -385,14 +395,11 @@ int main(void) {
 	RUN(test_newline_only);
 	RUN(test_multiple_lines);
 	RUN(test_blank_lines);
-	RUN(test_doubled_operators);
 	RUN(test_operator_at_edges);
 	RUN(test_nested_parens);
 	RUN(test_fd_redirect);
 	RUN(test_word_underscore_digits);
 	RUN(test_punctuation_words);
-	RUN(test_eof_points_at_end);
-	// known bugs: these fail until scanner.c is fixed
 	RUN(test_invalid_first_char);
 	RUN(test_carriage_return);
 

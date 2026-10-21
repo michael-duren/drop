@@ -33,6 +33,7 @@ void scanner_deinit(scanner_t *s) {
 	token_arr_deinit(&s->tokens);
 }
 
+// advance increments the current pointer and returns the old value
 char advance(scanner_t *s) { return *s->current++; }
 
 bool at_end(scanner_t *s) { return s->current >= s->source_len + s->source; }
@@ -129,12 +130,20 @@ int scan_token(scanner_t *s) {
 		rc = add_token(s, TOKEN_PIPE);
 		break;
 	case '<':
-		// TODO: needs more checks
-		rc = add_token(s, TOKEN_LESS);
+		if (peek(s) == '<') {
+			advance(s);
+			rc = add_token(s, TOKEN_DLESS);
+		} else {
+			rc = add_token(s, TOKEN_LESS);
+		}
 		break;
 	case '>':
-		// TODO: needs more checks
-		rc = add_token(s, TOKEN_GREAT);
+		if (peek(s) == '>') {
+			advance(s);
+			rc = add_token(s, TOKEN_DGREAT);
+		} else {
+			rc = add_token(s, TOKEN_GREAT);
+		}
 		break;
 	case '(':
 		rc = add_token(s, TOKEN_LPAREN);
