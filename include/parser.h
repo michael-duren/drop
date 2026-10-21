@@ -59,8 +59,8 @@ typedef struct {
   union {
     char *word;
     io_redir_t *io_redir;
-  } literal;
-  struct _cmd_suffix_t *suffix;
+  } op;
+  struct _cmd_suffix_t *prefix;
 } cmd_suffix_t;
 
 int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens);

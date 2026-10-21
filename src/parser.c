@@ -7,7 +7,7 @@
 #include <string.h>
 
 int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
-  if (!leaf || !tokens || !num_tokens) {
+  if (!leaf || !tokens || num_tokens <= 0) {
     errno = EINVAL;
     return DROP_ERR;
   }
@@ -41,11 +41,12 @@ int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
       return DROP_ERR; 
     }
 
-    return parse_program(leaf->val.program, &tokens[1], num_tokens - 2);
+    if (parse_program(leaf->val.program, &tokens[1], num_tokens - 2) == DROP_ERR) {
+      return DROP_ERR;
+    }
   }
-      
-  errno = EINVAL;
-  return DROP_ERR;
+
+  return DROP_OK;
 }
 
 void leaf_deinit(leaf_t *leaf) {
@@ -59,7 +60,10 @@ void leaf_deinit(leaf_t *leaf) {
 }
 
 int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens) {
-  if (!io_redir || !tokens || num_tokens != 2) {
+  if (!io_redir 
+      || !tokens 
+      || num_tokens != 2 
+      || tokens[1].type != TOKEN_WORD) {
     errno = EINVAL;
     return DROP_ERR;
   }
@@ -96,11 +100,50 @@ void io_redir_deinit(io_redir_t *io_redir) {
   }
 }
 
-/*
 int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens) {
+  if (!cmd_suffix || !tokens || num_tokens <= 0
+      || tokens[num_tokens-1].type != TOKEN_WORD) {
+    errno = EINVAL;
+    return DROP_ERR;
+  }
 
+  // If second to last token is <, >, or >>, parse last two tokens as io_redir
+  if (num_tokens >= 2 && is_rdr_type(tokens[num_tokens - 2].type)) {
+    cmd_suffix->op.io_redir = malloc(sizeof(io_redir_t));
+    if (!cmd_suffix->op.io_redir) {
+      errno = EINVAL;
+      return DROP_ERR;
+    }
+
+    cmd_suffix->is_redir = true;
+    parse_io_redir(cmd_suffix->op.io_redir, &tokens[num_tokens - 2], 2);
+  } 
+  else if (tokens[num_tokens - 1].type == TOKEN_WORD) {
+
+    cmd_suffix->op.word = malloc(sizeof(char) * (num_tokens + 1));
+    if (!cmd_suffix->op.word) {
+      errno = ENOMEM;
+      return DROP_ERR;
+    }
+
+    token_t *last = &tokens[num_tokens - 1];
+    strncpy(cmd_suffix->op.word, last->start, last->len);
+  } else {
+    errno = EINVAL;
+    return DROP_ERR;
+  }
+
+  if (num_tokens > 2) {
+    cmd_suffix->prefix = malloc(sizeof(cmd_suffix_t));
+    if (parse_cmd_suffix((cmd_suffix_t*)cmd_suffix->prefix, tokens, num_tokens - 2) == DROP_ERR) {
+      return DROP_ERR;
+    }
+  }
+
+  return DROP_OK;
 }
 
+/*
 void cmd_suffix_deinit(cmd_suffix_t *cmd_suffix) {
 
 }

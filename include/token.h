@@ -51,4 +51,6 @@ int token_arr_init(token_arr *arr);
 int token_arr_push(token_arr *arr, token_t token);
 void token_arr_deinit(token_arr *arr);
 
+bool is_rdr_type(token_type_t type);
+
 #endif // !DROP_TOKEN_H
