@@ -42,13 +42,13 @@ typedef struct {
 int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens);
 void leaf_deinit(leaf_t *leaf);
 
-enum redir_ops { 
+typedef enum _redir_ops { 
   RDR_SEND, // '>'
   RDR_APPEND, // '>>'
   RDR_TAKE, // '<'
-};
+} redir_ops;
 typedef struct {
-  enum redir_ops op;
+  redir_ops op;
   char *filename;
 } io_redir_t;
 

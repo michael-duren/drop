@@ -3,7 +3,6 @@
 #include "token.h"
 #include <asm-generic/errno-base.h>
 #include <errno.h>
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
