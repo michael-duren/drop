@@ -47,6 +47,5 @@ void token_arr_deinit(token_arr *arr) {
 }
 
 bool is_rdr_type(token_type_t type) {
-    return type == TOKEN_LESS || type == TOKEN_GREAT || type == TOKEN_DGREAT;
+	return type == TOKEN_LESS || type == TOKEN_GREAT || type == TOKEN_DGREAT;
 }
-
