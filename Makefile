@@ -9,7 +9,7 @@ SRCS    := $(wildcard src/*.c)
 OBJS    := $(patsubst src/%.c,$(BUILD)/%.o,$(SRCS))
 FMT_SRCS := $(wildcard src/*.c include/*.h tests/*.c)
 
-.PHONY: all build clean run test fmt fmt-check bear
+.PHONY: all build clean run test test-valgrind fmt fmt-check bear
 
 all: build
 
@@ -30,6 +30,12 @@ run: $(BIN)
 
 test:
 	$(MAKE) -C tests all
+
+# Runs the binary under Valgrind. Catches uninitialized reads, leaks,
+# and use-after-free that ASan (in the tests build) does not.
+# Use: make test-valgrind ARGS="some input"
+test-valgrind: build
+	valgrind --leak-check=full --error-exitcode=1 ./$(BIN) $(ARGS)
 
 # Rewrites files in place using .clang-format (LLVM style if none exists).
 fmt:
