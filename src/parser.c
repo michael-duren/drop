@@ -18,7 +18,7 @@ int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
   }
 
   if (num_tokens == 1) {
-    leaf->val.literal = malloc(sizeof(char) * (tokens->len + 1));
+    leaf->val.literal = calloc(sizeof(char), tokens->len + 1);
     if (!leaf->val.literal) {
       errno = ENOMEM;
       return DROP_ERR;
@@ -38,7 +38,7 @@ int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
 
     leaf->is_subcmd = true;
 
-    leaf->val.program = malloc(sizeof(program_t));
+    leaf->val.program = calloc(sizeof(program_t), 1);
     if (!leaf->val.program) {
       errno = ENOMEM;
       return DROP_ERR; 
@@ -92,7 +92,7 @@ int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens) {
     return DROP_ERR;
   }
 
-  io_redir->filename = malloc(sizeof(leaf_t));
+  io_redir->filename = calloc(sizeof(leaf_t), 1);
   if (!io_redir->filename) {
     errno = ENOMEM;
     return DROP_ERR;
@@ -176,7 +176,7 @@ int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens) 
   }
 
   if (rdr_tkn > -1) {
-    cmd_suffix->op.io_redir = malloc(sizeof(io_redir_t));
+    cmd_suffix->op.io_redir = calloc(sizeof(io_redir_t), 1);
     if (!cmd_suffix->op.io_redir) {
       errno = ENOMEM;
       return DROP_ERR;
@@ -190,7 +190,7 @@ int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens) 
   } 
   else if (tokens[last_node_pos].type == TOKEN_WORD 
       || tokens[last_node_pos].type == TOKEN_LPAREN) { 
-    cmd_suffix->op.word = malloc(sizeof(leaf_t));
+    cmd_suffix->op.word = calloc(sizeof(leaf_t), 1);
     if (!cmd_suffix->op.word) {
       errno = ENOMEM;
       return DROP_ERR;
@@ -207,7 +207,7 @@ int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens) 
   }
 
   if (last_node_pos > 0) {
-    cmd_suffix->prefix = malloc(sizeof(cmd_suffix_t));
+    cmd_suffix->prefix = calloc(sizeof(cmd_suffix_t), 1);
     if (!cmd_suffix->prefix) {
       errno = ENOMEM;
       cmd_suffix_deinit(cmd_suffix);
@@ -225,15 +225,20 @@ int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens) 
 }
 
 
-/*
+void simple_cmd_deinit(simple_cmd_t *simple_cmd) {
+  if (!simple_cmd) return;
+
+  leaf_deinit(simple_cmd->cmd_name);
+  free(simple_cmd->cmd_name);
+  cmd_suffix_deinit(simple_cmd->cmd_suffix);
+  free(simple_cmd->cmd_suffix);
+}
+
 int parse_simple_cmd(simple_cmd_t *simple_cmd, token_t *tokens, int num_tokens) {
 
 }
 
-void simple_cmd_deinit(simple_cmd_t *simple_cmd) {
-
-}
-
+/*
 int parse_pipe_seq(pipe_seq_t *pipe_seq, token_t *tokens, int num_tokens) {
 
 }
