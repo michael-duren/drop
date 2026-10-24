@@ -49,7 +49,7 @@ typedef enum _redir_ops {
 } redir_ops;
 typedef struct {
   redir_ops op;
-  char *filename;
+  leaf_t *filename;
 } io_redir_t;
 
 int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens);
@@ -57,7 +57,7 @@ int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens);
 typedef struct {
   bool is_redir; // type is word xor redir, no need for enum on a single switch
   union {
-    char *word;
+    leaf_t *word;
     io_redir_t *io_redir;
   } op;
   struct _cmd_suffix_t *prefix;
@@ -66,7 +66,7 @@ typedef struct {
 int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens);
 
 typedef struct {
-  char *cmd_name;
+  leaf_t *cmd_name;
   cmd_suffix_t *cmd_suffix;
 } simple_cmd_t;
 

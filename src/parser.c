@@ -12,26 +12,29 @@ int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
     return DROP_ERR;
   }
 
-  if (num_tokens == 1 && tokens->type == TOKEN_WORD) {
+  if (num_tokens == 1 && tokens->type != TOKEN_WORD) {
+    errno = EINVAL;
+    return DROP_ERR;
+  }
 
+  if (num_tokens == 1) {
     leaf->val.literal = malloc(sizeof(char) * (tokens->len + 1));
     if (!leaf->val.literal) {
       errno = ENOMEM;
       return DROP_ERR;
     }
 
-    strncpy(leaf->val.literal, tokens->start, tokens->len);
-    return DROP_OK;
-  }
-
-  /* This knowingly skips the '$' operator.
-   * Don't have a token for it and it isn't unique, 
-   * as $HOME is considered TOKEN_WORD.
-   * Out of scope for now.
-   */
-  if (num_tokens > 1 
+    memcpy(leaf->val.literal, tokens->start, tokens->len);
+    leaf->val.literal[tokens->len] = '\0';
+  } 
+  else if (num_tokens > 1 
       && tokens->type == TOKEN_LPAREN
-      && tokens[num_tokens-1].type == TOKEN_RPAREN) {
+      && tokens[num_tokens-1].type == TOKEN_RPAREN) { 
+    /* This knowingly skips the '$' operator.
+     * Don't have a token for it and it isn't unique, 
+     * as $HOME is considered TOKEN_WORD.
+     * Out of scope for now.
+     */
 
     leaf->is_subcmd = true;
 
@@ -42,8 +45,13 @@ int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
     }
 
     if (parse_program(leaf->val.program, &tokens[1], num_tokens - 2) == DROP_ERR) {
+      free(leaf->val.program);
       return DROP_ERR;
     }
+  } 
+  else {
+    errno = EINVAL;
+    return DROP_ERR;
   }
 
   return DROP_OK;
@@ -54,6 +62,7 @@ void leaf_deinit(leaf_t *leaf) {
 
   if (leaf->is_subcmd) {
     program_deinit(leaf->val.program);
+    free(leaf->val.program);
   } else {
     free(leaf->val.literal);
   }
@@ -62,7 +71,7 @@ void leaf_deinit(leaf_t *leaf) {
 int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens) {
   if (!io_redir 
       || !tokens 
-      || num_tokens != 2 
+      || num_tokens < 2
       || tokens[1].type != TOKEN_WORD) {
     errno = EINVAL;
     return DROP_ERR;
@@ -83,59 +92,131 @@ int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens) {
     return DROP_ERR;
   }
 
-  int fname_len = tokens[1].len;
-  io_redir->filename = malloc(sizeof(char) * (fname_len + 1));
+  io_redir->filename = malloc(sizeof(leaf_t));
   if (!io_redir->filename) {
     errno = ENOMEM;
     return DROP_ERR;
   }
+  if (parse_leaf(io_redir->filename, &tokens[1], num_tokens - 1) == DROP_ERR) {
+    free(io_redir->filename);
+    return DROP_ERR;
+  }
 
-  strncpy(io_redir->filename, tokens[1].start, fname_len);
   return DROP_OK;
 }
 
 void io_redir_deinit(io_redir_t *io_redir) {
   if (io_redir && io_redir->filename) {
+    leaf_deinit(io_redir->filename);
     free(io_redir->filename);
   }
 }
 
+int get_left_paren(token_t *tokens, int r_idx) {
+  int prn_count = 0;
+  for (int i = r_idx; i >= 0; --i) {
+    token_type_t tt = tokens[i].type;
+
+    if (tt == TOKEN_RPAREN) {
+      ++prn_count;
+    }
+    else if (tt == TOKEN_LPAREN) {
+      if (prn_count == 0) { return i; }
+      --prn_count;
+    }
+  }
+  return -1;
+}
+
+void cmd_suffix_deinit(cmd_suffix_t *cmd_suffix) {
+  if (!cmd_suffix) return;
+
+  if (cmd_suffix->is_redir) {
+    io_redir_deinit(cmd_suffix->op.io_redir);
+    free(cmd_suffix->op.io_redir);
+  } 
+  else {
+    leaf_deinit(cmd_suffix->op.word);
+    free(cmd_suffix->op.word);
+  }
+
+  cmd_suffix_deinit((cmd_suffix_t*)cmd_suffix->prefix);
+  free(cmd_suffix->prefix);
+}
+
 int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens) {
-  if (!cmd_suffix || !tokens || num_tokens <= 0
-      || tokens[num_tokens-1].type != TOKEN_WORD) {
+  if (!cmd_suffix || !tokens || num_tokens <= 0) {
     errno = EINVAL;
     return DROP_ERR;
   }
+  // Indicates last node/suffix is a subcommand and not a literal word
+  bool last_suffix_subcmd = tokens[num_tokens - 1].type == TOKEN_RPAREN;
+  // Index of the starting token of the last node/suffix 
+  int last_node_pos = -1;
+  // Index of redirect token, just beOre last_node_pos if it exists
+  int rdr_tkn = -1;
+  // Index of the end of the prefix, either just before last_node_pos or rdr_tkn
+  int prefix_end_pos = -1;
 
-  // If second to last token is <, >, or >>, parse last two tokens as io_redir
-  if (num_tokens >= 2 && is_rdr_type(tokens[num_tokens - 2].type)) {
+  if (last_suffix_subcmd) {
+    last_node_pos = get_left_paren(tokens, num_tokens - 1);
+    if (last_node_pos == -1) {
+      errno = EINVAL;
+      return DROP_ERR;
+    }
+  } else {
+    last_node_pos = num_tokens - 1;
+  }
+
+  if (last_node_pos > 0 && is_rdr_type(tokens[last_node_pos - 1].type)) {
+    rdr_tkn = last_node_pos - 1;
+    prefix_end_pos = rdr_tkn - 1;
+  } else {
+    prefix_end_pos = last_node_pos - 1;
+  }
+
+  if (rdr_tkn > -1) {
     cmd_suffix->op.io_redir = malloc(sizeof(io_redir_t));
     if (!cmd_suffix->op.io_redir) {
-      errno = EINVAL;
+      errno = ENOMEM;
       return DROP_ERR;
     }
 
     cmd_suffix->is_redir = true;
-    parse_io_redir(cmd_suffix->op.io_redir, &tokens[num_tokens - 2], 2);
+    if(parse_io_redir(cmd_suffix->op.io_redir, &tokens[rdr_tkn], num_tokens - rdr_tkn) == DROP_ERR) {
+      cmd_suffix_deinit(cmd_suffix);
+      return DROP_ERR;
+    }
   } 
-  else if (tokens[num_tokens - 1].type == TOKEN_WORD) {
-
-    cmd_suffix->op.word = malloc(sizeof(char) * (num_tokens + 1));
+  else if (tokens[last_node_pos].type == TOKEN_WORD 
+      || tokens[last_node_pos].type == TOKEN_LPAREN) { 
+    cmd_suffix->op.word = malloc(sizeof(leaf_t));
     if (!cmd_suffix->op.word) {
       errno = ENOMEM;
       return DROP_ERR;
     }
 
-    token_t *last = &tokens[num_tokens - 1];
-    strncpy(cmd_suffix->op.word, last->start, last->len);
-  } else {
+    if(parse_leaf(cmd_suffix->op.word, &tokens[last_node_pos], num_tokens - last_node_pos)) {
+      cmd_suffix_deinit(cmd_suffix);
+      return DROP_ERR;
+    }
+  } 
+  else {
     errno = EINVAL;
     return DROP_ERR;
   }
 
-  if (num_tokens > 2) {
+  if (last_node_pos > 0) {
     cmd_suffix->prefix = malloc(sizeof(cmd_suffix_t));
-    if (parse_cmd_suffix((cmd_suffix_t*)cmd_suffix->prefix, tokens, num_tokens - 2) == DROP_ERR) {
+    if (!cmd_suffix->prefix) {
+      errno = ENOMEM;
+      cmd_suffix_deinit(cmd_suffix);
+      return DROP_ERR;
+    }
+
+    // Parse prefixed cmd_suffix, cleanup if it fails
+    if (parse_cmd_suffix((cmd_suffix_t*)cmd_suffix->prefix, tokens, prefix_end_pos + 1) == DROP_ERR) {
+      cmd_suffix_deinit(cmd_suffix);
       return DROP_ERR;
     }
   }
@@ -143,11 +224,8 @@ int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens) 
   return DROP_OK;
 }
 
+
 /*
-void cmd_suffix_deinit(cmd_suffix_t *cmd_suffix) {
-
-}
-
 int parse_simple_cmd(simple_cmd_t *simple_cmd, token_t *tokens, int num_tokens) {
 
 }
