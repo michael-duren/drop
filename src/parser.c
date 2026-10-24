@@ -109,7 +109,34 @@ void io_redir_deinit(io_redir_t *io_redir) {
 	}
 }
 
+// Expects tokens ptr to be a left parenthesis
+int get_right_paren(token_t *tokens, int tokens_len) {
+  if (tokens[0].type != TOKEN_LPAREN) {
+    return -1;
+  }
+
+	int prn_count = 0;
+	for (int i = tokens_len; i < tokens_len; ++i) {
+		token_type_t tt = tokens[i].type;
+
+		if (tt == TOKEN_LPAREN) {
+			++prn_count;
+		} else if (tt == TOKEN_RPAREN) {
+			if (prn_count == 0) {
+				return i;
+			}
+			--prn_count;
+		}
+	}
+	return -1;
+}
+
+// Expects r_idx to be a right parenthesis
 int get_left_paren(token_t *tokens, int r_idx) {
+  if (tokens[r_idx].type != TOKEN_RPAREN) {
+    return -1;
+  }
+
 	int prn_count = 0;
 	for (int i = r_idx; i >= 0; --i) {
 		token_type_t tt = tokens[i].type;
@@ -237,25 +264,108 @@ void simple_cmd_deinit(simple_cmd_t *simple_cmd) {
 
 int parse_simple_cmd(simple_cmd_t *simple_cmd, token_t *tokens,
 					 int num_tokens) {
-	(void)simple_cmd;
-	(void)tokens;
-	(void)num_tokens;
+  if (!simple_cmd || !tokens || !num_tokens) {
+    errno = EINVAL;
+    return DROP_ERR;
+  }
+
+  int suffix_pos;
+  if (tokens->type == TOKEN_WORD) {
+    suffix_pos = 1;
+  }
+  else if (tokens->type == TOKEN_LPAREN) {
+    int right_paren = get_right_paren(tokens, num_tokens);
+    if (right_paren == -1) {
+      errno = EINVAL;
+      return DROP_ERR;
+    }
+
+    suffix_pos = right_paren + 1;
+  }
+  else {
+    errno = EINVAL;
+    return DROP_ERR; 
+  }
+  
+  simple_cmd->cmd_name = calloc(1, sizeof(leaf_t)); 
+  if (!simple_cmd->cmd_name) {
+    errno = ENOMEM;
+    return DROP_ERR;
+  }
+
+  if (suffix_pos < num_tokens) {
+    simple_cmd->cmd_suffix = calloc(1, sizeof(cmd_suffix_t));
+    if (!simple_cmd->cmd_suffix) {
+      errno = ENOMEM;
+      simple_cmd_deinit(simple_cmd);
+      return DROP_ERR;
+    }
+
+    if (parse_cmd_suffix(simple_cmd->cmd_suffix, &tokens[suffix_pos], num_tokens - suffix_pos) == DROP_ERR) {
+      simple_cmd_deinit(simple_cmd);
+      return DROP_ERR;
+    }
+  }
+    
 	return DROP_OK;
+}
+
+void pipe_seq_deinit(pipe_seq_t *pipe_seq) {
+  if (!pipe_seq) return;
+
+  simple_cmd_deinit(pipe_seq->simple_cmd);
+  free(pipe_seq->simple_cmd);
+  pipe_seq_deinit(pipe_seq->pipe_seq);
+  free((pipe_seq_t*)pipe_seq->pipe_seq);
 }
 
 int parse_pipe_seq(pipe_seq_t *pipe_seq, token_t *tokens, int num_tokens) {
-	(void)pipe_seq;
-	(void)tokens;
-	(void)num_tokens;
-	return DROP_OK;
-}
+  if (!pipe_seq || !tokens || !num_tokens) {
+    errno = EINVAL;
+    return DROP_ERR;
+  }
 
-void pipe_seq_deinit(pipe_seq_t *pipe_seq) { (void)pipe_seq; }
+  int pipe_idx = -1;
+  // last pipe cannot be index 0, has to be at least index 1
+  for (int i = num_tokens - 1; i >= 1; --i) {
+    if (tokens[i].type == TOKEN_RPAREN) {
+      i = get_left_paren(tokens, i);
+      if (i == -1) {
+        errno = EINVAL;
+        return DROP_ERR;
+      }
+    }
+    else if (tokens[i].type == TOKEN_PIPE) {
+      pipe_idx = i;
+      break;
+    }
+  }
 
-int parse_program(program_t *program, token_t *tokens, int num_tokens) {
-	(void)program;
-	(void)tokens;
-	(void)num_tokens;
+  if (pipe_idx > 0) {
+    pipe_seq->pipe_seq = calloc(1, sizeof(pipe_seq_t));
+    if (!pipe_seq->pipe_seq) {
+      errno = ENOMEM;
+      return DROP_ERR;
+    }
+
+    if (parse_pipe_seq(pipe_seq->pipe_seq, tokens, pipe_idx + 1) == DROP_ERR) {
+      pipe_seq_deinit(pipe_seq);
+      return DROP_ERR;
+    }
+  }
+
+  pipe_seq->simple_cmd = calloc(1, sizeof(simple_cmd_t));
+  if (!pipe_seq->simple_cmd) {
+    errno = ENOMEM;
+    pipe_seq_deinit(pipe_seq);
+    return DROP_ERR;
+  }
+
+  if (parse_simple_cmd(pipe_seq->simple_cmd, &tokens[pipe_idx + 1], num_tokens - (pipe_idx + 1)) == DROP_ERR) {
+    pipe_seq_deinit(pipe_seq);
+    return DROP_ERR;
+  }
+
 	return DROP_OK;
 }
 
@@ -265,3 +375,23 @@ void program_deinit(program_t *program) {
 	pipe_seq_deinit(program->pipe_seq);
 	free(program->pipe_seq);
 }
+
+int parse_program(program_t *program, token_t *tokens, int num_tokens) {
+  if (!program || !tokens || !num_tokens) {
+    errno = EINVAL;
+    return DROP_ERR;
+  }
+
+  program->pipe_seq = calloc(1, sizeof(pipe_seq_t));
+  if (!program->pipe_seq) {
+    errno = ENOMEM;
+    return DROP_ERR;
+  }
+
+  if (parse_pipe_seq(program->pipe_seq, tokens, num_tokens) == DROP_ERR) {
+    program_deinit(program);
+    return DROP_ERR;
+  }
+	return DROP_OK;
+}
+
