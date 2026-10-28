@@ -40,9 +40,6 @@ typedef struct {
 	} val;
 } leaf_t;
 
-int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens);
-void leaf_deinit(leaf_t *leaf);
-
 typedef enum _redir_ops {
 	RDR_SEND,	// '>'
 	RDR_APPEND, // '>>'
@@ -52,9 +49,6 @@ typedef struct {
 	redir_ops op;
 	leaf_t *filename;
 } io_redir_t;
-
-int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens);
-void io_redir_deinit(io_redir_t *io_redir);
 
 typedef struct {
 	bool
@@ -66,24 +60,15 @@ typedef struct {
 	struct _cmd_suffix_t *prefix;
 } cmd_suffix_t;
 
-int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens, int num_tokens);
-void cmd_suffix_deinit(cmd_suffix_t *cmd_suffix);
-
 typedef struct {
 	leaf_t *cmd_name;
 	cmd_suffix_t *cmd_suffix;
 } simple_cmd_t;
 
-int parse_simple_cmd(simple_cmd_t *simple_cmd, token_t *tokens, int num_tokens);
-void simple_cmd_deinit(simple_cmd_t *simple_cmd);
-
 typedef struct _pipe_seq_t {
 	simple_cmd_t *simple_cmd;
 	struct _pipe_seq_t *pipe_seq;
 } pipe_seq_t;
-
-int parse_pipe_seq(pipe_seq_t *pipe_seq, token_t *tokens, int num_tokens);
-void pipe_seq_deinit(pipe_seq_t *pipe_seq);
 
 typedef struct _program_t {
 	pipe_seq_t *pipe_seq;
