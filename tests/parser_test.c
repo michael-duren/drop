@@ -223,7 +223,7 @@ static void expect_program(struct prsr_test_meta *meta) {
 }
 
 static void run_test(token_arr *src, program_t *want) {
-  program_t *program = calloc(1, sizeof(program_t));
+  program_t *program = {};
 
   assert(parse_program(program, src->tokens, src->len) != DROP_ERR);
 
