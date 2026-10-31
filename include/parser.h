@@ -76,5 +76,6 @@ typedef struct _program_t {
 
 int parse_program(program_t *program, token_t *tokens, int num_tokens);
 void program_deinit(program_t *program);
+void print_program(program_t *program);
 
 #endif

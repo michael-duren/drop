@@ -87,15 +87,17 @@ void shell_loop(void) {
 			perror("scanner_init");
 			continue;
 		}
+		print_program(&p);
 
-		puts("parsed program");
+		scanner_deinit(&s);
+		program_deinit(&p);
 
 		if (strcmp(line, "exit\n") == 0) {
 			puts("goodbye!");
 			free(line);
 			break;
 		}
-		printf("you wrote: %s", line);
+		// printf("you wrote: %s", line);
 
 		free(line);
 	}

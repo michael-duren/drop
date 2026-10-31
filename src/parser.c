@@ -2,8 +2,76 @@
 #include "drop.h"
 #include "token.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+void print_program(program_t *p);
+
+void print_leaf(leaf_t *l) {
+	if (l == NULL) {
+		return;
+	}
+	if (l->is_subcmd) {
+		print_program(l->val.program);
+	} else {
+		printf("%s ", l->val.literal);
+	}
+}
+
+void print_cmd_sfx(cmd_suffix_t *c) {
+	if (c == NULL) {
+		return;
+	}
+
+	if (c->is_redir) {
+		io_redir_t *r = c->op.io_redir;
+		switch (r->op) {
+		case RDR_SEND:
+			printf("<");
+			break;
+		case RDR_APPEND:
+			printf(">>");
+			break;
+		case RDR_TAKE:
+			printf("<");
+			break;
+		}
+	} else {
+		print_leaf(c->op.word);
+	}
+
+	cmd_suffix_t *cc = (cmd_suffix_t *)c->prefix;
+	print_cmd_sfx(cc);
+}
+
+void print_simple_cmd(simple_cmd_t *s) {
+	if (s == NULL) {
+		return;
+	}
+	print_leaf(s->cmd_name);
+	print_cmd_sfx(s->cmd_suffix);
+}
+
+void print_pipe_seq(pipe_seq_t *ps) {
+	if (ps == NULL) {
+		return;
+	}
+	if (ps->pipe_seq != NULL) {
+		print_pipe_seq(ps->pipe_seq);
+		printf("| ");
+	}
+	print_simple_cmd(ps->simple_cmd);
+}
+
+void print_program(program_t *p) {
+	if (p == NULL) {
+		printf("empty program");
+	}
+	print_pipe_seq(p->pipe_seq);
+
+	printf("\n");
+}
 
 int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
 	if (!leaf || !tokens || num_tokens <= 0) {
