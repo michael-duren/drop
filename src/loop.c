@@ -1,4 +1,6 @@
 #include "drop.h"
+#include "parser.h"
+#include "scanner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,12 +60,35 @@ void shell_loop(void) {
 		printf("> ");
 		fflush(stdout);
 		line = drop_read_line();
-
 		// Ctrl-D on an empty line
 		if (line == NULL) {
 			putchar('\n');
 			break;
 		}
+
+		scanner_t s;
+		int rc = scanner_init(&s, line);
+		if (rc == DROP_ERR) {
+			perror("scanner_init");
+			continue;
+		}
+
+		rc = scan_tokens(&s);
+		if (rc == DROP_ERR) {
+			scanner_deinit(&s);
+			perror("scanner_init");
+			continue;
+		}
+
+		program_t p;
+		rc = parse_program(&p, s.tokens.tokens, s.tokens.len);
+		if (rc == DROP_ERR) {
+			scanner_deinit(&s);
+			perror("scanner_init");
+			continue;
+		}
+
+		puts("parsed program");
 
 		if (strcmp(line, "exit\n") == 0) {
 			puts("goodbye!");
