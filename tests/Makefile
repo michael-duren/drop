@@ -12,8 +12,9 @@ BUILD  := ../build/tests
 TESTS  := add_test scanner_test builtins_test
 
 add_test_SRCS := ../src/add.c
-scanner_test_SRCS := ../src/scanner.c ../src/token.c
 builtins_test_SRCS := ../src/builtins.c
+scanner_test_SRCS := ../src/scanner.c ../src/token.c ../include/scanner.h ../include/token.h
+parser_test_SRCS := ../src/parser.c $(scanner_test_SRCS) ../include/parser.h
 
 .PHONY: all build clean $(TESTS)
 
@@ -29,7 +30,10 @@ $(TESTS): %: $(BUILD)/%
 $(BUILD)/add_test: add_test.c $(add_test_SRCS) | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $^
 
-$(BUILD)/scanner_test: scanner_test.c $(scanner_test_SRCS) ../include/scanner.h ../include/token.h | $(BUILD)
+$(BUILD)/scanner_test: scanner_test.c $(scanner_test_SRCS) | $(BUILD)
+	$(CC) $(CFLAGS) -o $@ $(filter %.c,$^)
+
+$(BUILD)/parser_test: parser_test.c  $(parser_test_SRCS) | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $(filter %.c,$^)
 
 $(BUILD)/builtins_test: builtins_test.c $(builtins_test_SRCS) ../include/builtins.h | $(BUILD)
