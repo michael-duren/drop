@@ -1,4 +1,7 @@
 #include "drop.h"
+#include "eval.h"
+#include "parser.h"
+#include "scanner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,19 +61,16 @@ void shell_loop(void) {
 		printf("> ");
 		fflush(stdout);
 		line = drop_read_line();
-
 		// Ctrl-D on an empty line
 		if (line == NULL) {
 			putchar('\n');
 			break;
 		}
 
-		if (strcmp(line, "exit\n") == 0) {
-			puts("goodbye!");
-			free(line);
+		int rc = eval_line(line);
+		if (rc == DROP_EXIT) {
 			break;
 		}
-		printf("you wrote: %s", line);
 
 		free(line);
 	}

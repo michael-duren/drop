@@ -1,13 +1,16 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "drop.h"
 #include "parser.h"
 #include "token.h"
 
+// Breadcrumb trail of the nodes walked to reach the current check. Nodes live
+// on the stack of each expect_* call, so no allocation or cleanup is needed.
 struct layer_node {
-	char *str;
+	const char *str;
 	struct layer_node *last;
 };
 
@@ -36,7 +39,7 @@ struct prsr_test_meta {
 
 	struct layer_node *layer_head;
 };
-// static void expect_tree(struct prsr_test_meta *meta);
+
 static void expect_program(struct prsr_test_meta *meta);
 static void print_layers(struct layer_node *layer_head);
 
@@ -50,40 +53,42 @@ static void print_layers(struct layer_node *layer_head);
 		}                                                                      \
 	} while (0)
 
-static void add_layer_string(struct prsr_test_meta *meta, char *layer_str) {
-	struct layer_node *new_layer = calloc(1, sizeof(struct layer_node));
-	new_layer->str = layer_str;
-	struct layer_node **old_layer = &(meta->layer_head);
-	new_layer->last = *old_layer;
+static void push_layer(struct prsr_test_meta *meta, struct layer_node *layer,
+					   const char *str) {
+	layer->str = str;
+	layer->last = meta->layer_head;
+	meta->layer_head = layer;
 }
 
+// Prints innermost layer first.
 static void print_layers(struct layer_node *layer_head) {
-	do {
-		printf("-> %s\n", layer_head->str);
-	} while (layer_head->last);
+	for (struct layer_node *l = layer_head; l; l = l->last) {
+		fprintf(stderr, "-> %s\n", l->str);
+	}
 }
 
 static void expect_leaf(struct prsr_test_meta *meta) {
 	leaf_t *src = meta->src.leaf;
 	leaf_t *want = meta->want.leaf;
 
-	char *layer_str = malloc(sizeof(char) * 5);
-	layer_str = "leaf\0";
-	add_layer_string(meta, layer_str);
+	struct layer_node layer;
+	push_layer(meta, &layer, "leaf");
 
+	prsr_assert(src != NULL, meta->layer_head);
 	prsr_assert(src->is_subcmd == want->is_subcmd, meta->layer_head);
 
-	if (src->is_subcmd) {
+	if (want->is_subcmd) {
 		prsr_assert(src->val.program != NULL, meta->layer_head);
 
-		struct prsr_test_meta *nmeta = meta;
-		nmeta->type = T_PROGRAM;
-		nmeta->src.program = src->val.program;
-		nmeta->want.program = want->val.program;
-		expect_program(nmeta);
+		struct prsr_test_meta nmeta = *meta;
+		nmeta.type = T_PROGRAM;
+		nmeta.src.program = src->val.program;
+		nmeta.want.program = want->val.program;
+		expect_program(&nmeta);
 	} else {
 		prsr_assert(src->val.literal != NULL, meta->layer_head);
-		prsr_assert(src->val.literal == want->val.literal, meta->layer_head);
+		prsr_assert(strcmp(src->val.literal, want->val.literal) == 0,
+					meta->layer_head);
 	}
 }
 
@@ -91,55 +96,52 @@ static void expect_io_redir(struct prsr_test_meta *meta) {
 	io_redir_t *src = meta->src.io_redir;
 	io_redir_t *want = meta->want.io_redir;
 
-	char *layer_str = malloc(sizeof(char) * 9);
-	layer_str = "io_redir\0";
-	add_layer_string(meta, layer_str);
+	struct layer_node layer;
+	push_layer(meta, &layer, "io_redir");
 
 	prsr_assert(src->op == want->op, meta->layer_head);
 	prsr_assert(src->filename != NULL, meta->layer_head);
 
-	struct prsr_test_meta *nmeta = meta;
-	nmeta->type = T_LEAF;
-	nmeta->src.leaf = src->filename;
-	nmeta->want.leaf = want->filename;
-	expect_leaf(nmeta);
+	struct prsr_test_meta nmeta = *meta;
+	nmeta.type = T_LEAF;
+	nmeta.src.leaf = src->filename;
+	nmeta.want.leaf = want->filename;
+	expect_leaf(&nmeta);
 }
 
 static void expect_cmd_suffix(struct prsr_test_meta *meta) {
 	cmd_suffix_t *src = meta->src.cmd_suffix;
 	cmd_suffix_t *want = meta->want.cmd_suffix;
 
-	char *layer_str = malloc(sizeof(char) * 11);
-	layer_str = "cmd_suffix\0";
-	add_layer_string(meta, layer_str);
+	struct layer_node layer;
+	push_layer(meta, &layer, "cmd_suffix");
 
 	prsr_assert(src->is_redir == want->is_redir, meta->layer_head);
-	if (src->is_redir) {
-		prsr_assert(src->op.io_redir != NULL, meta->layer_head);
 
-		struct prsr_test_meta *nmeta = meta;
-		nmeta->type = T_IO_REDIR;
-		nmeta->src.io_redir = src->op.io_redir;
-		nmeta->want.io_redir = want->op.io_redir;
-		expect_io_redir(nmeta);
+	struct prsr_test_meta nmeta = *meta;
+	if (want->is_redir) {
+		prsr_assert(src->op.io_redir != NULL, meta->layer_head);
+		nmeta.type = T_IO_REDIR;
+		nmeta.src.io_redir = src->op.io_redir;
+		nmeta.want.io_redir = want->op.io_redir;
+		expect_io_redir(&nmeta);
 	} else {
 		prsr_assert(src->op.word != NULL, meta->layer_head);
-		struct prsr_test_meta *nmeta = meta;
-		nmeta->type = T_LEAF;
-		nmeta->src.leaf = src->op.word;
-		nmeta->want.leaf = want->op.word;
-		expect_leaf(nmeta);
+		nmeta.type = T_LEAF;
+		nmeta.src.leaf = src->op.word;
+		nmeta.want.leaf = want->op.word;
+		expect_leaf(&nmeta);
 	}
 
 	if (want->prefix == NULL) {
 		prsr_assert(src->prefix == NULL, meta->layer_head);
 	} else {
 		prsr_assert(src->prefix != NULL, meta->layer_head);
-		struct prsr_test_meta *pxmeta = meta;
-		pxmeta->type = T_CMD_SUFFIX;
-		pxmeta->src.cmd_suffix = (cmd_suffix_t *)src->prefix;
-		pxmeta->want.cmd_suffix = (cmd_suffix_t *)want->prefix;
-		expect_cmd_suffix(pxmeta);
+		struct prsr_test_meta pxmeta = *meta;
+		pxmeta.type = T_CMD_SUFFIX;
+		pxmeta.src.cmd_suffix = (cmd_suffix_t *)src->prefix;
+		pxmeta.want.cmd_suffix = (cmd_suffix_t *)want->prefix;
+		expect_cmd_suffix(&pxmeta);
 	}
 }
 
@@ -147,29 +149,28 @@ static void expect_simple_cmd(struct prsr_test_meta *meta) {
 	simple_cmd_t *src = meta->src.simple_cmd;
 	simple_cmd_t *want = meta->want.simple_cmd;
 
-	char *layer_str = malloc(sizeof(char) * 11);
-	layer_str = "simple_cmd\0";
-	add_layer_string(meta, layer_str);
+	struct layer_node layer;
+	push_layer(meta, &layer, "simple_cmd");
 
 	prsr_assert(src->cmd_name != NULL, meta->layer_head);
 
 	// Validate cmd name as leaf node
-	struct prsr_test_meta *nmeta = meta;
-	nmeta->type = T_LEAF;
-	nmeta->src.leaf = src->cmd_name;
-	nmeta->want.leaf = want->cmd_name;
-	expect_leaf(nmeta);
+	struct prsr_test_meta nmeta = *meta;
+	nmeta.type = T_LEAF;
+	nmeta.src.leaf = src->cmd_name;
+	nmeta.want.leaf = want->cmd_name;
+	expect_leaf(&nmeta);
 
 	// Validate cmd suffix if exists
 	if (want->cmd_suffix == NULL) {
 		prsr_assert(src->cmd_suffix == NULL, meta->layer_head);
 	} else {
 		prsr_assert(src->cmd_suffix != NULL, meta->layer_head);
-		struct prsr_test_meta *sxmeta = meta;
-		sxmeta->type = T_CMD_SUFFIX;
-		sxmeta->src.cmd_suffix = src->cmd_suffix;
-		sxmeta->want.cmd_suffix = want->cmd_suffix;
-		expect_cmd_suffix(sxmeta);
+		struct prsr_test_meta sxmeta = *meta;
+		sxmeta.type = T_CMD_SUFFIX;
+		sxmeta.src.cmd_suffix = src->cmd_suffix;
+		sxmeta.want.cmd_suffix = want->cmd_suffix;
+		expect_cmd_suffix(&sxmeta);
 	}
 }
 
@@ -177,27 +178,26 @@ static void expect_pipe_seq(struct prsr_test_meta *meta) {
 	pipe_seq_t *src = meta->src.pipe_seq;
 	pipe_seq_t *want = meta->want.pipe_seq;
 
-	char *layer_str = malloc(sizeof(char) * 9);
-	layer_str = "pipe_seq\0";
-	add_layer_string(meta, layer_str);
+	struct layer_node layer;
+	push_layer(meta, &layer, "pipe_seq");
 
 	prsr_assert(src->simple_cmd != NULL, meta->layer_head);
 
-	struct prsr_test_meta *nmeta = meta;
-	nmeta->type = T_SIMPLE_CMD;
-	nmeta->src.simple_cmd = src->simple_cmd;
-	nmeta->want.simple_cmd = want->simple_cmd;
-	expect_simple_cmd(nmeta);
+	struct prsr_test_meta nmeta = *meta;
+	nmeta.type = T_SIMPLE_CMD;
+	nmeta.src.simple_cmd = src->simple_cmd;
+	nmeta.want.simple_cmd = want->simple_cmd;
+	expect_simple_cmd(&nmeta);
 
 	if (want->pipe_seq == NULL) {
 		prsr_assert(src->pipe_seq == NULL, meta->layer_head);
 	} else {
 		prsr_assert(src->pipe_seq != NULL, meta->layer_head);
-		struct prsr_test_meta *psmeta = meta;
-		psmeta->type = T_PIPE_SEQ;
-		psmeta->src.pipe_seq = src->pipe_seq;
-		psmeta->want.pipe_seq = want->pipe_seq;
-		expect_pipe_seq(psmeta);
+		struct prsr_test_meta psmeta = *meta;
+		psmeta.type = T_PIPE_SEQ;
+		psmeta.src.pipe_seq = src->pipe_seq;
+		psmeta.want.pipe_seq = want->pipe_seq;
+		expect_pipe_seq(&psmeta);
 	}
 }
 
@@ -205,30 +205,31 @@ static void expect_program(struct prsr_test_meta *meta) {
 	program_t *src = meta->src.program;
 	program_t *want = meta->want.program;
 
-	char *layer_str = malloc(sizeof(char) * 8);
-	layer_str = "program\0";
-	add_layer_string(meta, layer_str);
+	struct layer_node layer;
+	push_layer(meta, &layer, "program");
 
 	prsr_assert(src->pipe_seq != NULL, meta->layer_head);
 
-	struct prsr_test_meta *nmeta = meta;
-	nmeta->type = T_PIPE_SEQ;
-	nmeta->src.pipe_seq = src->pipe_seq;
-	nmeta->want.pipe_seq = want->pipe_seq;
-	expect_pipe_seq(meta);
+	struct prsr_test_meta nmeta = *meta;
+	nmeta.type = T_PIPE_SEQ;
+	nmeta.src.pipe_seq = src->pipe_seq;
+	nmeta.want.pipe_seq = want->pipe_seq;
+	expect_pipe_seq(&nmeta);
 }
 
 static void run_test(token_arr *src, program_t *want) {
-	program_t *program = {};
+	program_t program = {0};
 
-	assert(parse_program(program, src->tokens, src->len) != DROP_ERR);
+	assert(parse_program(&program, src->tokens, src->len) != DROP_ERR);
 
-	struct prsr_test_meta *meta = calloc(1, sizeof(struct prsr_test_meta));
-	meta->type = T_PROGRAM;
-	meta->src.program = program;
-	meta->want.program = want;
+	struct prsr_test_meta meta = {
+		.type = T_PROGRAM,
+		.src.program = &program,
+		.want.program = want,
+	};
+	expect_program(&meta);
 
-	expect_program(meta);
+	program_deinit(&program);
 }
 
 static void test_pipe_seq() {
@@ -271,24 +272,29 @@ static void test_pipe_seq() {
 		.len = 7,
 	};
 
-	leaf_t ls =
-		{
-			.val.literal = "ls",
-	} leaf_t la =
-			{
-				.val.literal = "-la",
-	} leaf_t grep =
-				{
-					.val.literal = "grep",
-	} leaf_t i =
-					{
-						.val.literal = "i",
-	} leaf_t foo =
-						{
-							.val.literal = "foo",
-	}
+	leaf_t ls = {.val.literal = "ls"};
+	leaf_t la = {.val.literal = "-la"};
+	leaf_t grep = {.val.literal = "grep"};
+	leaf_t i = {.val.literal = "-i"};
+	leaf_t foo = {.val.literal = "foo"};
 
-	program_t want = {};
+	// ls -la
+	cmd_suffix_t ls_sfx = {.op.word = &la};
+	simple_cmd_t ls_cmd = {.cmd_name = &ls, .cmd_suffix = &ls_sfx};
+	pipe_seq_t ls_seq = {.simple_cmd = &ls_cmd};
+
+	// grep -i foo: last word is the node, earlier words chain via prefix
+	cmd_suffix_t grep_sfx_i = {.op.word = &i};
+	cmd_suffix_t grep_sfx = {
+		.op.word = &foo,
+		.prefix = (struct _cmd_suffix_t *)&grep_sfx_i,
+	};
+	simple_cmd_t grep_cmd = {.cmd_name = &grep, .cmd_suffix = &grep_sfx};
+
+	// pipe_seq '|' simple_cmd: left side nests in pipe_seq
+	pipe_seq_t grep_seq = {.simple_cmd = &grep_cmd, .pipe_seq = &ls_seq};
+
+	program_t want = {.pipe_seq = &grep_seq};
 
 	run_test(&ta, &want);
 }

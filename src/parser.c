@@ -2,8 +2,77 @@
 #include "drop.h"
 #include "token.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+void print_program(program_t *p);
+
+void print_leaf(leaf_t *l) {
+	if (!l) {
+		return;
+	}
+	if (l->is_subcmd) {
+		print_program(l->val.program);
+	} else {
+		printf("%s ", l->val.literal);
+	}
+}
+
+void print_cmd_sfx(cmd_suffix_t *c) {
+	if (!c) {
+		return;
+	}
+
+	if (c->is_redir) {
+		io_redir_t *r = c->op.io_redir;
+		switch (r->op) {
+		case RDR_SEND:
+			printf("<");
+			break;
+		case RDR_APPEND:
+			printf(">>");
+			break;
+		case RDR_TAKE:
+			printf("<");
+			break;
+		}
+	} else {
+		print_leaf(c->op.word);
+	}
+
+	cmd_suffix_t *cc = (cmd_suffix_t *)c->prefix;
+	print_cmd_sfx(cc);
+}
+
+void print_simple_cmd(simple_cmd_t *s) {
+	if (!s) {
+		return;
+	}
+	print_leaf(s->cmd_name);
+	print_cmd_sfx(s->cmd_suffix);
+}
+
+void print_pipe_seq(pipe_seq_t *ps) {
+	if (!ps) {
+		return;
+	}
+	if (ps->pipe_seq != NULL) {
+		print_pipe_seq(ps->pipe_seq);
+		printf("| ");
+	}
+	print_simple_cmd(ps->simple_cmd);
+}
+
+void print_program(program_t *p) {
+	if (!p) {
+		printf("empty program");
+		return;
+	}
+	print_pipe_seq(p->pipe_seq);
+
+	printf("\n");
+}
 
 int parse_leaf(leaf_t *leaf, token_t *tokens, int num_tokens) {
 	if (!leaf || !tokens || num_tokens <= 0) {
@@ -64,6 +133,7 @@ void leaf_deinit(leaf_t *leaf) {
 	} else {
 		free(leaf->val.literal);
 	}
+	leaf->val.literal = NULL;
 }
 
 int parse_io_redir(io_redir_t *io_redir, token_t *tokens, int num_tokens) {
@@ -106,6 +176,7 @@ void io_redir_deinit(io_redir_t *io_redir) {
 	if (io_redir && io_redir->filename) {
 		leaf_deinit(io_redir->filename);
 		free(io_redir->filename);
+		io_redir->filename = NULL;
 	}
 }
 
@@ -116,7 +187,7 @@ int get_right_paren(token_t *tokens, int tokens_len) {
 	}
 
 	int prn_count = 0;
-	for (int i = tokens_len; i < tokens_len; ++i) {
+	for (int i = 1; i < tokens_len; ++i) {
 		token_type_t tt = tokens[i].type;
 
 		if (tt == TOKEN_LPAREN) {
@@ -138,7 +209,7 @@ int get_left_paren(token_t *tokens, int r_idx) {
 	}
 
 	int prn_count = 0;
-	for (int i = r_idx; i >= 0; --i) {
+	for (int i = r_idx - 1; i >= 0; --i) {
 		token_type_t tt = tokens[i].type;
 
 		if (tt == TOKEN_RPAREN) {
@@ -165,8 +236,11 @@ void cmd_suffix_deinit(cmd_suffix_t *cmd_suffix) {
 		free(cmd_suffix->op.word);
 	}
 
+	cmd_suffix->op.word = NULL;
+
 	cmd_suffix_deinit((cmd_suffix_t *)cmd_suffix->prefix);
 	free(cmd_suffix->prefix);
+	cmd_suffix->prefix = NULL;
 }
 
 int parse_cmd_suffix(cmd_suffix_t *cmd_suffix, token_t *tokens,
@@ -258,8 +332,10 @@ void simple_cmd_deinit(simple_cmd_t *simple_cmd) {
 
 	leaf_deinit(simple_cmd->cmd_name);
 	free(simple_cmd->cmd_name);
+	simple_cmd->cmd_name = NULL;
 	cmd_suffix_deinit(simple_cmd->cmd_suffix);
 	free(simple_cmd->cmd_suffix);
+	simple_cmd->cmd_suffix = NULL;
 }
 
 int parse_simple_cmd(simple_cmd_t *simple_cmd, token_t *tokens,
@@ -291,6 +367,11 @@ int parse_simple_cmd(simple_cmd_t *simple_cmd, token_t *tokens,
 		return DROP_ERR;
 	}
 
+	if (parse_leaf(simple_cmd->cmd_name, tokens, suffix_pos) == DROP_ERR) {
+		simple_cmd_deinit(simple_cmd);
+		return DROP_ERR;
+	}
+
 	if (suffix_pos < num_tokens) {
 		simple_cmd->cmd_suffix = calloc(1, sizeof(cmd_suffix_t));
 		if (!simple_cmd->cmd_suffix) {
@@ -315,8 +396,10 @@ void pipe_seq_deinit(pipe_seq_t *pipe_seq) {
 
 	simple_cmd_deinit(pipe_seq->simple_cmd);
 	free(pipe_seq->simple_cmd);
+	pipe_seq->simple_cmd = NULL;
 	pipe_seq_deinit(pipe_seq->pipe_seq);
-	free((pipe_seq_t *)pipe_seq->pipe_seq);
+	free(pipe_seq->pipe_seq);
+	pipe_seq->pipe_seq = NULL;
 }
 
 int parse_pipe_seq(pipe_seq_t *pipe_seq, token_t *tokens, int num_tokens) {
@@ -347,8 +430,7 @@ int parse_pipe_seq(pipe_seq_t *pipe_seq, token_t *tokens, int num_tokens) {
 			return DROP_ERR;
 		}
 
-		if (parse_pipe_seq(pipe_seq->pipe_seq, tokens, pipe_idx + 1) ==
-			DROP_ERR) {
+		if (parse_pipe_seq(pipe_seq->pipe_seq, tokens, pipe_idx) == DROP_ERR) {
 			pipe_seq_deinit(pipe_seq);
 			return DROP_ERR;
 		}
@@ -375,12 +457,26 @@ void program_deinit(program_t *program) {
 		return;
 	pipe_seq_deinit(program->pipe_seq);
 	free(program->pipe_seq);
+	program->pipe_seq = NULL;
 }
 
 int parse_program(program_t *program, token_t *tokens, int num_tokens) {
 	if (!program || !tokens || !num_tokens) {
 		errno = EINVAL;
 		return DROP_ERR;
+	}
+
+	// Scanner always ends with EOF, usually preceded by NEWLINE.
+	// Neither belongs to the pipe_sequence.
+	while (num_tokens > 0 && (tokens[num_tokens - 1].type == TOKEN_EOF ||
+							  tokens[num_tokens - 1].type == TOKEN_NEWLINE)) {
+		--num_tokens;
+	}
+
+	// Empty line: valid program, no pipe_seq.
+	if (num_tokens == 0) {
+		program->pipe_seq = NULL;
+		return DROP_OK;
 	}
 
 	program->pipe_seq = calloc(1, sizeof(pipe_seq_t));

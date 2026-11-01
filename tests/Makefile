@@ -9,7 +9,7 @@ CFLAGS := -std=c23 -Wall -Wextra -Werror -pedantic -g -I../include \
 BUILD  := ../build/tests
 
 # Each test is tests/<name>_test.c linked against the src/ files it needs.
-TESTS  := add_test scanner_test builtins_test
+TESTS  := add_test scanner_test builtins_test parser_test
 
 add_test_SRCS := ../src/add.c
 builtins_test_SRCS := ../src/builtins.c
