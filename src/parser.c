@@ -9,7 +9,7 @@
 void print_program(program_t *p);
 
 void print_leaf(leaf_t *l) {
-	if (l == NULL) {
+	if (!l) {
 		return;
 	}
 	if (l->is_subcmd) {
@@ -20,7 +20,7 @@ void print_leaf(leaf_t *l) {
 }
 
 void print_cmd_sfx(cmd_suffix_t *c) {
-	if (c == NULL) {
+	if (!c) {
 		return;
 	}
 
@@ -46,7 +46,7 @@ void print_cmd_sfx(cmd_suffix_t *c) {
 }
 
 void print_simple_cmd(simple_cmd_t *s) {
-	if (s == NULL) {
+	if (!s) {
 		return;
 	}
 	print_leaf(s->cmd_name);
@@ -54,7 +54,7 @@ void print_simple_cmd(simple_cmd_t *s) {
 }
 
 void print_pipe_seq(pipe_seq_t *ps) {
-	if (ps == NULL) {
+	if (!ps) {
 		return;
 	}
 	if (ps->pipe_seq != NULL) {
@@ -65,8 +65,9 @@ void print_pipe_seq(pipe_seq_t *ps) {
 }
 
 void print_program(program_t *p) {
-	if (p == NULL) {
+	if (!p) {
 		printf("empty program");
+		return;
 	}
 	print_pipe_seq(p->pipe_seq);
 
